@@ -1,142 +1,91 @@
 # Short Game
 
-A complete mobile-first par-3 practice app. Nine holes, three or four balls, immediate scoring, local draft recovery, round history, statistics, personal bests, offline installation, and optional private Google Sheets backup.
+A simple mobile-first par-3 practice app. Play nine holes with three or four balls, then see a complete round summary you can record in your own notes or spreadsheet. No account, Google connection, credentials, or database is needed. Scores stay on your device.
 
-## Run
+## Use the app
 
-Requires Node.js 22 or newer (tested with 24.22.1).
+1. Start a practice round and enter the course name.
+2. Choose four balls, or three balls (Pressure omitted by default).
+3. Enter each ball's result on each hole. Every tap automatically saves your draft.
+4. On hole nine, review and finish the round.
+5. The results screen shows challenge points, total strokes, average strokes per hole, GIR%, up-and-down%, a point breakdown by ball, and the nine-hole scorecard. Tap **Copy round summary** to paste the stats into your own records, or take a screenshot. If clipboard access is unavailable, the app displays selectable summary text.
+
+Completed rounds remain available under **Rounds**. **Progress** retains local statistics, trends, and personal bests. Existing drafts and rounds from the earlier version remain compatible; there is no data migration or reset.
+
+## Scoring
+
+| Ball | Result | Points |
+| --- | --- | --- |
+| Scoring | Actual strokes including penalties | Tracked separately |
+| Accuracy | Green in regulation: tee shot on green | 2 |
+| Accuracy | Tee shot within 15 feet of the pin | +1 |
+| Up-and-down | Down in 2 / 3 / 4+ from off the green | 2 / 1 / 0 |
+| Pressure | Ace / birdie / par / bogey or worse | 5 / 3 / 2 / 0 |
+
+Four-ball maximum: **90** points, as confirmed during development. Three-ball mode always keeps Scoring and omits one challenge ball: Pressure omitted = 45 maximum; Accuracy omitted = 63; Up-and-down omitted = 72.
+
+Tap **+** to start the scoring ball at par (3), then adjust. Tap a selected challenge result to clear it. Unanswered fields differ from zero-point results; all active balls on nine holes must be answered to finish. GIR% is based on the Accuracy Ball. Up-and-down% means two-stroke successes. Skipped challenges are excluded from statistics.
+
+## Run locally
+
+Requires Node.js 22+ (tested with 24.22.1).
 
 ```sh
-cd /workspace/three
 npm ci
 npm start
 ```
 
-The server listens on port 3000, or `$PORT`. For local development, open the local server in your browser. `npm run dev` restarts the server when files change. No runtime dependencies, database, external fonts, or paid API is required. Development dependencies are only for browser tests.
+The server listens on port 3000, or the host's `PORT`. `npm run dev` restarts it when server files change. There are no runtime dependencies or external service calls. The Node server only serves the public files and a health check at `/api/status`; it never receives your scores.
 
-## Scoring
+## Deploy using the existing Render configuration
 
-As confirmed during development, the maximum is **90**, rather than 72, for a four-ball round. Scoring strokes do not contribute challenge points.
+1. In [Render](https://dashboard.render.com/), choose **New → Blueprint** and connect [ma-xsimon/three](https://github.com/ma-xsimon/three).
+2. Select the `main` branch and use the included `render.yaml`.
+3. Review the hosting plan and deploy. No secrets need to be added.
+4. Open the HTTPS address Render provides. Start a draft, reload, finish a round, and check the results.
 
-| Ball | Result | Points |
-| --- | --- | --- |
-| Scoring | Actual strokes, including penalties | Tracked separately |
-| Accuracy | Green in regulation: tee shot on green | 2 |
-| Accuracy | Tee shot finishes within 15 feet of the pin | +1 |
-| Up-and-down | Down in 2 from a practice drop off the green | 2 |
-| Up-and-down | Down in 3 | 1 |
-| Up-and-down | Down in 4+ | 0 |
-| Pressure | Hole-in-one / birdie / par / bogey+ | 5 / 3 / 2 / 0 |
+If already deployed with automatic deploys enabled, pushing this update to `main` triggers a new deployment. Otherwise use **Manual Deploy → Deploy latest commit**. Old Google or sync environment variables can be removed from the Render dashboard; the app no longer reads them. The previous `/api/status` health-check URL remains supported so existing deployments keep working.
 
-Three-ball mode keeps Scoring and skips a selectable challenge ball. The default skips Pressure (maximum **45**). Skipping Accuracy allows 63 points; skipping Up-and-down allows 72. The model also understands legacy capped scoring policies in backups; newly created rounds use the uncapped awards above.
+A free Render service may sleep; check [current pricing and limits](https://render.com/pricing). The cached app remains usable offline. The included Dockerfile is an alternative for hosts that run containers; build with `docker build -t short-game .` and run with `docker run --rm -p 3000:3000 short-game`. No environment file is needed.
 
-Tap **+** to begin the scoring ball at par, then adjust. Tap a selected challenge result again to clear it. Unanswered and zero are distinct. All active fields on nine holes must be answered before finishing. View the scorecard at any time; an incomplete round remains a draft.
-
-Statistics use completed rounds. GIR% uses Accuracy Ball attempts; up-and-down% means two-stroke successes, divided by played Up-and-down Ball attempts. Skipped balls are excluded. Average strokes uses the Scoring Ball. Trends show percent of the round maximum so different formats have a meaningful scale. Use format filters for like-for-like comparisons. Round detail compares challenge points against the preceding round with the same ball format and scoring policy.
-
-## Data and recovery
-
-Every input saves immediately to `localStorage`. Normal Safari/app restarts retain the draft on the same device and origin. Offline operation becomes available after one online visit and completion of service-worker caching. The home screen app and Safari may have different storage contexts depending on the iOS version; use JSON export/import or Sheets sync to transfer rounds if needed.
-
-Browser data is not a permanent backup: clearing website data, private browsing, OS storage eviction, switching domains, or losing the phone can remove it. Settings includes JSON export/import. Import validates every round, merges by ID and newest update timestamp, and never replaces an existing draft. Export includes the active draft; **Sheets sync backs up completed rounds only**. Storage failures display an explicit warning.
-
-Sheets sync is explicit: unlock it in Settings and tap **Sync completed rounds** after finishing. It both uploads local rounds and pulls cloud rounds. Repeated syncs merge by ID, and revisions append without destroying older spreadsheet records. There is no delete operation in the first version; cloud rows and completed history are retained. JSON backups are plain text and contain course names and scores; keep them private.
-
-## Private Google Sheets setup
-
-The public browser bundle contains **no** Google credentials, spreadsheet ID, private round data, or sync password. Only your Node server talks to Google. A shared private password protects your personal single-user backup; it is not a multi-user account system. Anyone with that password can read/upload the connected completed rounds. Use a unique password, do not share it, and deploy behind HTTPS.
-
-1. In [Google Cloud Console](https://console.cloud.google.com/), create or select a project. Enable **Google Sheets API**.
-2. Create a service account and a JSON key. Keep the downloaded key private; never commit it. Organization policies may prohibit keys; if so, arrange an approved credential method before live sync.
-3. Create a private Google spreadsheet. Create a tab named **Rounds** (exact capitalization).
-4. Add this header row, in columns A through F:
-
-   ```text
-   id | updated_at | date | course | points | round_json
-   ```
-
-   Put each header in its own cell. Do not use this six-column tab for unrelated data, formulas, sorting partial columns, or manual editing of `round_json`. Other tabs are fine. A malformed row deliberately stops sync to avoid silently losing records.
-5. Share the spreadsheet with the service account's `client_email` as **Editor**. Do not enable public link access.
-6. In your host's **secret environment variables**, configure:
-
-   | Variable | Value |
-   | --- | --- |
-   | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | The JSON key's `client_email` |
-   | `GOOGLE_PRIVATE_KEY` | The complete JSON key's `private_key`, including BEGIN/END lines; actual newlines or literal `\n` both work |
-   | `GOOGLE_SHEET_ID` | The ID between `/d/` and `/edit` in the spreadsheet URL |
-   | `SYNC_PASSWORD` | Unique random password, at least 16 characters |
-   | `SESSION_SECRET` | Separate random secret, at least 32 characters |
-   | `NODE_ENV` | `production` on your deployed host |
-
-   Generate suitable independent values locally with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`. Never paste the results into source code or chat. `.env.example` lists names only; `.env` is ignored. For trusted local testing, `node --env-file=.env server.js` loads a private local file. `npm start` expects the host to inject variables; it does not automatically read `.env`.
-7. Restart the server, open Settings, enter `SYNC_PASSWORD`, and sync. The password is sent only to your own server and is not saved in browser storage. The server issues a signed HttpOnly, SameSite=Strict cookie, secure in production, valid for seven days. Lock it with **Lock connection**. Rotating `SESSION_SECRET` invalidates existing sessions.
-8. Verify the round appears as a row in the private sheet, then open a second browser/device, unlock, and sync to confirm it downloads. This real-Google check requires your credentials; automated tests use a simulated Google service.
-
-Google JWT signing, token exchange, and Sheets calls happen server-side. TLS verification remains enabled. Sheet writes use `RAW` so a course name starting with `=` is not evaluated as a spreadsheet formula. The service worker never caches API responses. Authentication failures do not delete local rounds. The server serializes sync operations within an instance; run a single instance for this small personal app. Append revisions can produce duplicate rows after an ambiguous network retry or between instances, but reads deduplicate by ID and update timestamp. Device clocks determine revision ordering.
-
-For restricted networking, the server requires HTTPS access to `oauth2.googleapis.com` and `sheets.googleapis.com`. Repository/development setup also needs GitHub and `registry.npmjs.org`.
-
-## Publish on Render (simple default)
-
-A `render.yaml` blueprint is included for a single Node web service. The app has no runtime database or persistent server disk requirement. Check [Render's current pricing](https://render.com/pricing): a free service may sleep and has quotas, so initial page loads and Sheets sync can take longer after inactivity. A paid instance avoids sleep if needed. The installed offline app still supports local practice while the server is asleep.
-
-1. Push these source files to your own private GitHub repository. This workspace was supplied as an empty `ma-xsimon/three` repository; no remote push or commit has been performed automatically.
-2. In [Render](https://dashboard.render.com/), connect that repository and create a **Blueprint**, using `render.yaml`. Alternatively create a Node Web Service with:
-   - Build: `npm ci --omit=dev --ignore-scripts`
-   - Start: `npm start`
-   - Node: `24.22.1`
-   - Health check: `/api/status`
-   - Environment: `NODE_ENV=production`
-3. Deploy. Render supplies `PORT` and HTTPS. Test creating a draft, reloading, completing a round, and opening history. The app works immediately in local-only mode.
-4. Add the private Google variables above to the Render environment settings, then redeploy/restart. Verify real sync using step 8 above.
-5. Keep the hostname stable: browser storage is bound to it. Export or sync before switching domains. Never add secret values to `render.yaml` or public JavaScript.
-
-No hosting account or Google credential was supplied during implementation, so no public deployment or live Google verification is claimed. An authenticated host connection is needed to perform publication on your behalf. The repository includes everything necessary to deploy through its dashboard.
-
-## Other hosts / Docker
-
-Any HTTPS Node host that supports environment secrets and a long-running Node service can run `npm start`. Bind the provider's supplied port. The included Dockerfile uses `node:24-alpine`, runs as a non-root user, and copies only server/public files. Build and run with your own secret injection:
-
-```sh
-docker build -t short-game .
-docker run --rm -p 3000:3000 --env-file .env short-game
-```
-
-The image defaults to production cookies. For plain HTTP local Docker testing of login, add `-e NODE_ENV=development`; production deployments must keep HTTPS and production cookies. The Docker image is provided as an alternative and was not built in this environment. Pure static hosting supports the local app, but **does not** support the private Sheets API; deploy the Node server for full functionality.
+All app files under `public/` can also be served directly by an HTTPS static host, without Node. Keep the files at the domain root. No build step or backend is needed for the app itself.
 
 ## Add to iPhone Home Screen
 
-1. Open the deployed **HTTPS** site in Safari, online.
-2. Tap **Share** → **Add to Home Screen** (it may be under More). Keep **Open as Web App** enabled if offered, then tap Add.
-3. Open **Short Game** from the home screen once while online. After caching, test opening it in airplane mode.
-4. Play normally; each tap saves the draft. Reconnect before syncing. Export JSON regularly if you do not configure Sheets.
+1. Open the deployed HTTPS site in Safari while online.
+2. Tap **Share → Add to Home Screen → Add**. Keep **Open as Web App** enabled if offered.
+3. Launch Short Game once while online so the offline files can cache.
+4. Play normally. After finishing, copy your summary to Notes or your manual tracker.
 
-The app includes a web manifest, standalone mode, Apple touch icon, safe-area navigation, and an offline service worker. iOS can evict website data, so local storage alone cannot guarantee permanent retention. Current browser validation uses mobile Chromium; physical iPhone/Safari validation remains a deployment check.
+The app includes a manifest, Apple touch icon, standalone mode, safe-area navigation, and offline caching. On an existing install, open online and close/reopen after the update to refresh cached files.
+
+## Local saving and backup
+
+Drafts and history use this browser's `localStorage`. Normal restarts retain them, and earlier saved data is preserved by this update. Clearing site data, private browsing, OS storage eviction, switching domains, or losing the phone can remove them. Safari and home-screen storage can differ by iOS version. Keep the hostname stable and record results manually as desired.
+
+Settings retains **Export JSON backup** and **Restore a backup**. Export includes completed rounds and your active draft. Restore validates the backup, merges completed rounds by ID and newest revision, and restores a draft only if none is already active. These optional files provide a way to transfer or preserve your local data without connecting to a service.
 
 ## Tests
 
 ```sh
 npm run check
 npm test
-# For browser tests, start the server in another terminal:
-npm start
-# Then (downloads browser only when needed):
+# With npm start running in another terminal:
 npx playwright install chromium
 npm run test:browser
-# Or use an existing Chromium installation:
+# Or use an installed Chromium:
 CHROMIUM_PATH=/usr/bin/chromium npm run test:browser
 ```
 
-The test suite checks exact challenge awards, maximums, three-ball exclusion, completeness, statistics denominators, merge validation, HTTP asset access, password/cookie protection, cross-origin writes, and server-side Sheets JWT/read/write/error handling with simulated Google responses. The browser tests exercise a complete nine-hole round, reload recovery, history, statistics, offline access, and three-ball controls at iPhone dimensions. They require permission to start a local browser/server. No Google calls or credentials are needed for automated tests.
+Tests cover scoring awards, maximums, three-ball exclusion, completeness, stats, backup validation, history ordering, serving files, and removal of authentication/data endpoints. Mobile browser checks cover a complete round and its summary, no API requests, reload/restart draft recovery, JSON restoration, offline use, and small-screen layouts. Physical iPhone/Safari validation remains a deployment check.
 
-## Source map
+## Source
 
-- `public/index.html`, `style.css`, `app.js`: accessible responsive interface and state persistence.
-- `public/model.js`: scoring, validation, completion, statistics, merge logic, shared with server.
-- `server.js`: static server, private session authentication, server-side Sheets adapter.
-- `public/sw.js`, manifest, icons: installability and offline shell.
-- `test/`: model, HTTP, Google-adapter tests.
-- `scripts/browser-smoke.cjs`: mobile functional checks.
-- `render.yaml`, `Dockerfile`: deployment options.
+- `public/app.js`, `style.css`, `index.html`: interface, round summaries, and local persistence.
+- `public/model.js`: scoring, statistics, validation, and backup merging.
+- `public/sw.js`, manifest, icons: installation and offline use.
+- `server.js`: small static-file server.
+- `test/`, `scripts/`: unit, server, and mobile browser tests.
+- `render.yaml`, `Dockerfile`: hosting configuration.
 
-No analytics, ads, or external tracking scripts are used. The optional Sheets service is the only external runtime data destination.
+Google Sheets integration has been removed. Its previous implementation remains recoverable from Git history if requested later. No analytics, ads, trackers, or external runtime services are used.

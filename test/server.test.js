@@ -4,7 +4,18 @@ import {createServer} from '../server.js';
 let server,base;
 before(async()=>{server=createServer();await new Promise(r=>server.listen(0,'127.0.0.1',r));base=`http://127.0.0.1:${server.address().port}`;});
 after(()=>new Promise(r=>server.close(r)));
-test('serves app, all offline assets, and excludes server files',async()=>{for(const path of ['/','/app.js','/model.js','/style.css','/sw.js','/manifest.webmanifest','/icon.svg','/apple-touch-icon.png','/icon-192.png','/icon-512.png']){const r=await fetch(base+path);assert.equal(r.status,200,path);assert.equal(r.headers.get('x-content-type-options'),'nosniff');}for(const path of ['/server.js','/.env','/package.json'])assert.equal((await fetch(base+path)).status,404);});
-test('unconfigured mode exposes no secrets and rejects private sync',async()=>{const status=await(await fetch(base+'/api/status')).json();assert.deepEqual(status,{configured:false,authenticated:false});const r=await fetch(base+'/api/rounds',{method:'POST',headers:{'Content-Type':'application/json'},body:'{"rounds":[]}'});assert.equal(r.status,401);});
-test('reject cross-origin writes and invalid content type',async()=>{const r=await fetch(base+'/api/login',{method:'POST',headers:{origin:'https://evil.example','Content-Type':'application/json'},body:'{}'});assert.equal(r.status,403);assert.equal((await fetch(base+'/api/login',{method:'POST',body:'{}'})).status,415);});
-test('configured password login uses HttpOnly signed cookie; invalid and expired cookies fail',async()=>{const keys=['GOOGLE_SERVICE_ACCOUNT_EMAIL','GOOGLE_PRIVATE_KEY','GOOGLE_SHEET_ID','SYNC_PASSWORD','SESSION_SECRET'];for(const k of keys)process.env[k]='test-value-only-abcdefghijklmnopqrstuvwxyz';try{let r=await fetch(base+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:'wrong'})});assert.equal(r.status,401);r=await fetch(base+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:process.env.SYNC_PASSWORD})});assert.equal(r.status,200);const cookie=r.headers.get('set-cookie');assert.match(cookie,/HttpOnly/);assert.match(cookie,/SameSite=Strict/);const auth=await(await fetch(base+'/api/status',{headers:{cookie}})).json();assert.equal(auth.authenticated,true);const bad=await(await fetch(base+'/api/status',{headers:{cookie:cookie.replace('sg_session=','sg_session=1.')}})).json();assert.equal(bad.authenticated,false);r=await fetch(base+'/api/rounds',{method:'POST',headers:{cookie,'Content-Type':'application/json'},body:'{"rounds":[{}]}'});assert.equal(r.status,400);}finally{for(const k of keys)delete process.env[k];}});
+test('serves app, offline assets, and excludes private source files',async()=>{
+ for(const path of ['/','/app.js','/model.js','/style.css','/sw.js','/manifest.webmanifest','/icon.svg','/apple-touch-icon.png','/icon-192.png','/icon-512.png']){
+  const r=await fetch(base+path);assert.equal(r.status,200,path);assert.equal(r.headers.get('x-content-type-options'),'nosniff');
+ }
+ for(const path of ['/server.js','/.env','/package.json'])assert.equal((await fetch(base+path)).status,404);
+});
+test('health check requires no configuration and returns no credential metadata',async()=>{
+ const res=await fetch(base+'/api/status');assert.equal(res.status,200);assert.deepEqual(await res.json(),{ok:true});
+});
+test('removed data and authentication endpoints cannot accept or return round data',async()=>{
+ for(const path of ['/api/login','/api/logout','/api/rounds']){
+  assert.equal((await fetch(base+path)).status,404);
+  assert.equal((await fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).status,405);
+ }
+});
